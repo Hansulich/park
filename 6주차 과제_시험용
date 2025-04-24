@@ -1,0 +1,110 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn import linear_model
+from sklearn.model_selection import train_test_split
+
+# 1. 데이터 Loading
+url = "https://raw.githubusercontent.com/Hansulich/park/main/Social_Network_Ads.csv"
+data = pd.read_csv(url)
+
+# 2. 데이터 전처리 (특징 추출)
+X = data.iloc[:, [2, 3]].values  # Age, EstimatedSalary
+y = data.iloc[:, 4].values       # Purchased
+
+# 3. 데이터 분할
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, shuffle=True
+)
+
+# 특징 스케일링
+def standardize(X):
+    mean = np.mean(X, axis=0)
+    std = np.std(X, axis=0)
+    return (X - mean) / std, mean, std
+
+X_train, mean_train, std_train = standardize(X_train)
+X_test = (X_test - mean_train) / std_train
+
+# 4. 시그모이드 함수
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+# 5. 경사하강법 로지스틱 회귀
+def gradient_descent(X, y, learning_rate=0.01, iterations=10000):
+    m, n = X.shape
+    X_with_bias = np.c_[np.ones((m, 1)), X]
+    weights = np.zeros(n + 1)
+
+    for i in range(iterations):
+        z = np.dot(X_with_bias, weights)
+        predictions = sigmoid(z)
+        gradient = np.dot(X_with_bias.T, (predictions - y)) / m
+        weights -= learning_rate * gradient
+
+        if i % 1000 == 0:
+            loss = -np.mean(y * np.log(predictions + 1e-15) + (1 - y) * np.log(1 - predictions + 1e-15))
+            print(f"Iteration {i}, Loss: {loss:.4f}")
+
+    return weights
+
+weights = gradient_descent(X_train, y_train)
+w0, w1, w2 = weights
+print(f"Gradient Descent Parameters: w0 = {w0:.4f}, w1 = {w1:.4f}, w2 = {w2:.4f}")
+
+# 6. 시각화 함수 (직접 구현 모델용)
+def plot_decision_boundary(X, y, weights, title):
+    x1_min, x1_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+    x2_min, x2_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+    xx1, xx2 = np.meshgrid(np.arange(x1_min, x1_max, 0.01),
+                           np.arange(x2_min, x2_max, 0.01))
+
+    X_grid = np.c_[xx1.ravel(), xx2.ravel()]
+    probs = sigmoid(np.c_[np.ones((X_grid.shape[0], 1)), X_grid] @ weights)
+    probs = probs.reshape(xx1.shape)
+
+    plt.figure(figsize=(10, 6))
+    plt.contourf(xx1, xx2, probs, alpha=0.3, cmap=plt.cm.RdBu)
+    plt.contour(xx1, xx2, probs, [0.5], linewidths=1, colors='black')
+    plt.scatter(X[y == 0, 0], X[y == 0, 1], c='red', label='Not Purchased')
+    plt.scatter(X[y == 1, 0], X[y == 1, 1], c='green', label='Purchased')
+    plt.title(title)
+    plt.xlabel('Age (Standardized)')
+    plt.ylabel('Estimated Salary (Standardized)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+plot_decision_boundary(X_train, y_train, weights, "Gradient Descent - Training Data")
+
+# 7. Scikit-learn 모델 학습 및 파라미터 출력
+sk_model = linear_model.LogisticRegression(random_state=42)
+sk_model.fit(X_train, y_train)
+sk_w0 = sk_model.intercept_[0]
+sk_w1, sk_w2 = sk_model.coef_[0]
+print(f"Scikit-learn Parameters: w0 = {sk_w0:.4f}, w1 = {sk_w1:.4f}, w2 = {sk_w2:.4f}")
+
+# 8. 시각화 함수 (scikit-learn용)
+def plot_decision_boundary_sklearn(X, y, model, title):
+    x1_min, x1_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+    x2_min, x2_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+    xx1, xx2 = np.meshgrid(np.arange(x1_min, x1_max, 0.01),
+                           np.arange(x2_min, x2_max, 0.01))
+
+    X_grid = np.c_[xx1.ravel(), xx2.ravel()]
+    probs = model.predict_proba(X_grid)[:, 1].reshape(xx1.shape)
+
+    plt.figure(figsize=(10, 6))
+    plt.contourf(xx1, xx2, probs, alpha=0.3, cmap=plt.cm.RdBu)
+    plt.contour(xx1, xx2, probs, [0.5], linewidths=1, colors='black')
+    plt.scatter(X[y == 0, 0], X[y == 0, 1], c='red', label='Not Purchased')
+    plt.scatter(X[y == 1, 0], X[y == 1, 1], c='green', label='Purchased')
+    plt.title(title)
+    plt.xlabel('Age (Standardized)')
+    plt.ylabel('Estimated Salary (Standardized)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+plot_decision_boundary_sklearn(X_train, y_train, sk_model, 'Scikit-learn - Training Data')
+plot_decision_boundary_sklearn(X_test, y_test, sk_model, 'Scikit-learn - Test Data')
